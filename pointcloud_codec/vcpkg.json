@@ -1,0 +1,12 @@
+﻿{
+  "name": "pointcloud-codec",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "draco",
+    "eigen3",
+    "cxxopts",
+    { "name": "pcl" },
+    { "name": "pcl", "features": [ "visualization" ], "platform": "!static" },
+    { "name": "vtk", "platform": "!static" }
+  ]
+}
