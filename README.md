@@ -1,115 +1,79 @@
-# pointcloud_codec — LiDAR point-cloud quantization + Draco
+# pointcloud_codec
 
-> Compress `.pcd` point clouds with position quantization, decode back, **visualize before/after**, and measure distortion (**RMSE / Chamfer**). Windows + CMake + vcpkg + PCL/VTK.
-
----
-
-## TL;DR
-
-- **Encode**: PCD → Draco (`.drc`) with configurable **qpos_bits**
-- **Decode**: Draco → PCD
-- **View**: Side-by-side viewer (original vs. reconstructed) via **PCL/VTK**
-- **Measure**: pointwise **RMSE** and **Chamfer RMSE**
-- **Plot**: quick **rate–distortion** CSV sweep across q=8..16
+A research-friendly **LiDAR point-cloud codec** that combines **position quantization** with **Google Draco** entropy coding. It ships with a tiny encoder/decoder, a PCL/VTK viewer for **side-by-side** inspection (original vs reconstructed), and metric tools for **RMSE** and **Chamfer RMSE** so you can study rate–distortion behavior on real data.
 
 ---
 
-## Prereqs
+## What this project does
 
-- **Windows 10/11**, **VS 2022**, **CMake ≥ 3.22**
-- **vcpkg** installed at `C:\vcpkg` (or set `VCPKG_ROOT` below)
-
-> Tip: Open a **“x64 Native Tools for VS 2022”** or **“VS 2022 Developer PowerShell”**.
+- **Quantize XYZ** positions to an integer grid (`qpos_bits` per axis) and compress with **Draco**.
+- **Decode** to PCD for downstream tooling and **visualize** original vs reconstructed point clouds.
+- **Measure distortion** with:
+  - **Per-index RMSE** (simple RMS over corresponding samples)
+  - **Symmetric Chamfer RMSE** (nearest-neighbor in both directions, robust to small reordering)
+- **Sweep qpos_bits** to export **rate–distortion tables** (bytes, ratio, bits/point, Chamfer).
 
 ---
 
-## Quick start (copy into VS 2022 x64 Developer PowerShell)
+## Components
 
-> This script configures/builds the tools, downloads a sample PCD, encodes/decodes at `q=14`, opens the viewer, and writes a **rate–distortion** CSV.
+- **Library (`pcc`)** – quantisation, AABB helpers, and glue to Draco
+- **CLI tools**
+  - `minimal_encode` – PCD ⇄ DRC encoder/decoder
+  - `pcd_rmse` – per-index RMSE between two PCDs
+  - `pcd_chamfer` – symmetric Chamfer RMSE between two PCDs
+- **Viewer** – `pcc_viewer` (PCL/VTK) renders original (left) and reconstructed (right)
 
-```powershell
-$ErrorActionPreference = 'Stop'
-$repo = (Get-Location).Path
-$env:VCPKG_ROOT = $env:VCPKG_ROOT ?? 'C:\vcpkg'
-$toolchain = Join-Path $env:VCPKG_ROOT 'scripts\buildsystems\vcpkg.cmake'
-if (!(Test-Path $toolchain)) { throw "vcpkg toolchain not found at $toolchain" }
+---
 
-# Minimal package config template required by CMake install() step
-New-Item -ItemType Directory -Force -Path .\cmake | Out-Null
-$cfgIn = '.\cmake\pointcloud_codecConfig.cmake.in'
-if (!(Test-Path $cfgIn)) {
-@'
-# Minimal package config for pointcloud_codec
-include("${CMAKE_CURRENT_LIST_DIR}/pointcloud_codecTargets.cmake")
-'@ | Set-Content -Encoding UTF8 $cfgIn
-}
+## Example results (PCL sample: `table_scene_lms400.pcd`)
 
-# Configure + build (dynamic triplet so PCL/VTK viewer works)
-$build = ".\build\vs2022-x64"
-cmake -S . -B $build `
-  -G "Visual Studio 17 2022" -A x64 `
-  -DCMAKE_TOOLCHAIN_FILE="$toolchain" `
-  -DVCPKG_TARGET_TRIPLET=x64-windows `
-  -DBUILD_TESTS=OFF -DBUILD_BENCHMARKS=OFF -DBUILD_VIEWER=ON
+**One operating point (qpos_bits = 14)**
 
-cmake --build $build --config Release --parallel `
-  --target minimal_encode `
-  --target pcd_rmse `
-  --target pcd_chamfer `
-  --target pcc_viewer
+- Points: **460,400**
+- Original PCD: **5,649,007 bytes**
+- Compressed DRC: **956,270 bytes** → **0.169×** the original
+- Bits per point: **16.616 bpp**
+- RMSE (per-index): **0.9095**  
+- Chamfer RMSE (NN-based): **6.27×10⁻⁵**  
+*(Units follow the dataset; PCL “table scene” is in meters.)*
 
-# Sample data
-New-Item -ItemType Directory -Force -Path .\data | Out-Null
-$pcd = ".\data\table_scene_lms400.pcd"
-if (!(Test-Path $pcd)) {
-  Invoke-WebRequest -Uri "https://github.com/PointCloudLibrary/data/raw/master/tutorials/table_scene_lms400.pcd" `
-                    -OutFile $pcd
-}
+**Rate–Distortion sweep (q = 8…16)**
 
-# Encode/Decode at q=14 + sizes/metrics
-$E  = Join-Path $build 'Release\minimal_encode.exe'
-$RM = Join-Path $build 'Release\pcd_rmse.exe'
-$CH = Join-Path $build 'Release\pcd_chamfer.exe'
-$drc = ".\table_q14.drc"; $rec = ".\table_q14.pcd"
+| qpos_bits | DRC bytes | Ratio (comp/orig) | Bits/pt | Chamfer RMSE |
+|:---------:|----------:|------------------:|--------:|-------------:|
+| 8  | 55,198   | 0.009771 | 0.959  | 3.214e-03 |
+| 9  | 135,545  | 0.023994 | 2.355  | 1.791e-03 |
+| 10 | 275,408  | 0.048753 | 4.786  | 9.816e-04 |
+| 11 | 442,014  | 0.078246 | 7.681  | 4.991e-04 |
+| 12 | 612,664  | 0.108455 | 10.646 | 2.501e-04 |
+| 13 | 784,200  | 0.138821 | 13.626 | 1.253e-04 |
+| 14 | 956,270  | 0.169281 | 16.616 | 6.268e-05 |
+| 15 | 1,128,719| 0.199808 | 19.613 | 3.135e-05 |
+| 16 | 1,301,269| 0.230354 | 22.611 | 1.568e-05 |
 
-& $E encode -i $pcd -o $drc --qpos-bits 14
-& $E decode -i $drc -o $rec
+*Takeaway:* increasing `qpos_bits` improves geometry fidelity (lower Chamfer) at a predictable cost in bitrate.
 
-$orig  = (Get-Item $pcd).Length
-$comp  = (Get-Item $drc).Length
-$ratio = [math]::Round($comp / $orig, 4)
-$Npts  = 460400 # point count for table_scene_lms400
-$bpp   = [math]::Round(($comp * 8.0) / $Npts, 3)
+---
 
-$rmseVal = ([regex]::Match(((& $RM $pcd $rec 2>&1) -join "`n"), 'RMSE.*?:\s*([0-9.eE+-]+)')).Groups[1].Value
-$chVal   = ([regex]::Match(((& $CH $pcd $rec 2>&1) -join "`n"), 'Chamfer RMSE:\s*([0-9.eE+-]+)')).Groups[1].Value
+## Design notes
 
-"`n=== q=14 summary ==="
-"Original : $orig bytes"
-"Compressed: $comp bytes"
-"Ratio    : $ratio x"
-"Bits/pt  : $bpp"
-"RMSE     : $rmseVal"
-"Chamfer  : $chVal"
+- Quantization uses a dataset AABB and clamps tiny extents to avoid divide-by-zero.
+- Distortion is reported two ways because real pipelines sometimes reorder points:
+  - **Per-index RMSE** is quick and intuitive.
+  - **Chamfer RMSE** is insensitive to permutation and better reflects visual quality.
+- The viewer highlights differences visually and is helpful for qualitative checks alongside numeric metrics.
 
-# Rate–Distortion sweep q=8..16 -> rd_table_scene.csv
-$rows = foreach ($q in 8..16) {
-  $qdrc = ".\table_q$q.drc"; $qrec = ".\table_q$q.pcd"
-  & $E encode -i $pcd -o $qdrc --qpos-bits $q | Out-Null
-  & $E decode -i $qdrc -o $qrec | Out-Null
-  $bytes = (Get-Item $qdrc).Length
-  $rat   = [math]::Round($bytes / $orig, 6)
-  $qbpp  = [math]::Round(($bytes * 8.0) / $Npts, 3)
-  $co    = & $CH $pcd $qrec 2>&1
-  $cm    = ([regex]::Match(($co -join "`n"), 'Chamfer RMSE:\s*([0-9.eE+-]+)')).Groups[1].Value
-  [pscustomobject]@{ qpos_bits=$q; drc_bytes=$bytes; ratio=$rat; bpp=$qbpp; chamfer_m=[double]$cm }
-}
-$csv = ".\rd_table_scene.csv"
-$rows | Tee-Object -Variable RD | Format-Table
-$RD | ConvertTo-Csv -NoTypeInformation | Set-Content $csv
-"`nWrote $csv"
+---
 
-# Launch viewer (side-by-side)
-$env:Path = "$repo\build\vs2022-x64\vcpkg_installed\x64-windows\bin;$env:Path"
-$viewer = Join-Path $build 'Release\pcc_viewer.exe'
-Start-Process -FilePath $viewer -ArgumentList "`"$pcd`"","`"$rec`""
+## Technologies
+
+- **C++20**, **CMake**
+- **Draco** (geometry compression), **Eigen** (math)
+- **PCL / VTK** (I/O and visualization)
+- **vcpkg** (dependency management)
+
+---
+
+
+
