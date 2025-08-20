@@ -38,7 +38,7 @@ A research-friendly **LiDAR point-cloud codec** that combines **position quantiz
 - Chamfer RMSE (NN-based): **6.27×10⁻⁵**  
 *(Units follow the dataset; PCL “table scene” is in meters.)*
 
-**Rate–Distortion sweep (q = 8…16)**
+**Rate-Distortion sweep (q = 8…16)**
 
 | qpos_bits | DRC bytes | Ratio (comp/orig) | Bits/pt | Chamfer RMSE |
 |:---------:|----------:|------------------:|--------:|-------------:|
