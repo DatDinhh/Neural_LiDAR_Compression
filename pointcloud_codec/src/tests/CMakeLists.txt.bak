@@ -1,0 +1,43 @@
+# tests/CMakeLists.txt
+cmake_minimum_required(VERSION 3.20)
+
+project(pcc_tests LANGUAGES CXX)
+
+find_package(PCL CONFIG REQUIRED COMPONENTS io common)
+find_package(GTest CONFIG REQUIRED)
+
+find_package(benchmark CONFIG QUIET)
+
+add_executable(roundtrip_rms.test
+    roundtrip_rms.test.cpp
+)
+target_compile_features(roundtrip_rms.test PRIVATE cxx_std_20)
+target_link_libraries(roundtrip_rms.test PRIVATE
+    PCL::io PCL::common
+    GTest::gtest GTest::gtest_main
+)
+if (MSVC)
+  target_compile_options(roundtrip_rms.test PRIVATE /wd4996)
+endif()
+
+add_executable(streams_chunking.test
+    streams_chunking.test.cpp
+)
+target_compile_features(streams_chunking.test PRIVATE cxx_std_20)
+target_link_libraries(streams_chunking.test PRIVATE
+    PCL::io PCL::common
+    GTest::gtest GTest::gtest_main
+)
+if (MSVC)
+  target_compile_options(streams_chunking.test PRIVATE /wd4996)
+endif()
+
+include(GoogleTest)
+gtest_discover_tests(roundtrip_rms.test)
+gtest_discover_tests(streams_chunking.test)
+
+if (benchmark_FOUND)
+  add_subdirectory(benchmarks)
+else()
+  message(STATUS "Google Benchmark not found; benchmarks will be skipped.")
+endif()
