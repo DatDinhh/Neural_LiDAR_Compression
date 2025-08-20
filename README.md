@@ -17,11 +17,11 @@ A research-friendly **LiDAR point-cloud codec** that combines **position quantiz
 
 ## Components
 
-- **Library (`pcc`)** – quantisation, AABB helpers, and glue to Draco
+- **Library (`pcc`)** - quantisation, AABB helpers, and glue to Draco
 - **CLI tools**
-  - `minimal_encode` – PCD ⇄ DRC encoder/decoder
-  - `pcd_rmse` – per-index RMSE between two PCDs
-  - `pcd_chamfer` – symmetric Chamfer RMSE between two PCDs
+  - `minimal_encode` - PCD ⇄ DRC encoder/decoder
+  - `pcd_rmse` - per-index RMSE between two PCDs
+  - `pcd_chamfer` - symmetric Chamfer RMSE between two PCDs
 - **Viewer** – `pcc_viewer` (PCL/VTK) renders original (left) and reconstructed (right)
 
 ---
