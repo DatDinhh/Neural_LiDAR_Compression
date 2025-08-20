@@ -1,0 +1,5 @@
+Original size : 5649007 bytes
+Compressed    : 956270 bytes
+Ratio         : 0.169281 x    (≈ 5.91× smaller)
+Bits / point  : 16.616
+Chamfer RMSE  : 6.26841E-05 m
